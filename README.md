@@ -13,12 +13,32 @@
 
 ---
 
+## 의존성
+
+이 프로젝트는 다음에 의존합니다. [Crypto++](https://www.cryptopp.com/).
+
+### `apt-get` 사용
+```bash
+sudo apt-get update
+sudo apt-get install -y libcrypto++-dev libcrypto++-utils libcrypto++-doc
+```
+### 직접 빌드
+```bash
+wget https://www.cryptopp.com/cryptopp890.zip
+unzip cryptopp890.zip -d cryptopp890
+cd cryptopp890
+make -j$(nproc)
+sudo make install
+```
+
 ## 빌드
 
 ```bash
-clang++ -std=c++17 -O2 -o optimus_kv src/main.cpp
-# 또는
-g++ -std=c++17 -O2 -o optimus_kv src/main.cpp
+# using clang++
+clang++ -std=c++17 -O2 -o optimus_kv src/main.cpp -lcryptopp
+
+# or using g++
+g++ -std=c++17 -O2 -o optimus_kv src/main.cpp -lcryptopp
 ```
 
 ---
