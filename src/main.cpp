@@ -5,7 +5,45 @@
 #include <optional>
 #include <algorithm>
 
+#include <cryptopp/aes.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/filters.h>
+
 using namespace std;
+
+/**
+ * 테스트 용으로 간단한 key와 iv로 설정하였다.
+ * TODO: 생성된 key와 무작위 iv 입력받기
+ */
+CryptoPP::byte key[CryptoPP::AES::DEFAULT_KEYLENGTH] = {0};
+CryptoPP::byte iv[CryptoPP::AES::BLOCKSIZE] = {0};
+
+/** 
+ * 평문을 입력받아 전역 key와 iv를 사용해 암호화된 문자열을 반환한다.
+ */
+string encrypt(const string& plain) {
+    string cipher;
+
+    CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption enc;
+    enc.SetKeyWithIV(key, sizeof(key), iv);
+    // plain 문자열을 enc 필터를 거쳐 cipher에 저장한다.
+    CryptoPP::StringSource ss1(plain, true, new CryptoPP::StreamTransformationFilter(enc, new CryptoPP::StringSink(cipher)));
+
+    return cipher;
+}
+
+/**
+ * 암호문을 입력받아 전역 key와 iv를 사용해 복호화된 문자열을 반환한다.
+ */
+string decrypt(const string& cipher) {
+    string plain;
+
+    CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption dec;
+    dec.SetKeyWithIV(key, sizeof(key), iv);
+    CryptoPP::StringSource ss2(cipher, true, new CryptoPP::StreamTransformationFilter(dec, new CryptoPP::StringSink(plain)));
+
+    return plain;
+}
 
 static const string DB_PATH = "data.log";
 
@@ -23,14 +61,15 @@ bool append_line(const string& line) { // string&를 사용하여 원본을 바�
 
 /**
  * key-value를 입력받아 데이터 로그에 형식에 맞게 추가한다.
+ * 이때 value는 암호화된다.
  * 성공 여부를 반환한다.
  */
 bool kv_put(const string& key, const string& value) {
     // 현재는 탭으로 키 값을 구분하고 개행으로 아이템을 구분하므로, 키나 값에는 탭과 개행이 있어선 안 된다. 이를 검사하는 단계다.
     if (key.find('\n') != string::npos || key.find('\t') != string::npos) return false; // string::find(c)는 문자열 안에서 c 문자를 찾는다. 찾지 못하면 string::npos 라는 특수 값을 반환한다.
     if (value.find('\n') != string::npos || value.find('\t') != string::npos) return false;
-    // P\tkey\tvalue 형식으로 저장될 한 줄을 작성한다.
-    string line = "P\t" + key + "\t" + value;
+    // P\tkey\t암호화(value) 형식으로 저장될 한 줄을 작성한다.
+    string line = "P\t" + key + "\t" + encrypt(value);
     // 작성한 한 줄을 추가한다.
     return append_line(line);
 }
@@ -49,7 +88,7 @@ bool kv_del(const string& key) {
  * 데이터 로그를 한 줄씩 끝까지 읽어가며 key 값을 찾는다.
  * 발견할 때마다 last_value로 업데이트한다.
  * 삭제 로그를 발견하면 last_value를 지운다.
- * 값이 존재한다면 그 값을 반환한다.
+ * 값이 존재한다면 그 값을 복호화하여 반환한다.
  */
 optional<string> kv_get(const string& key) {
     ifstream in(DB_PATH);
@@ -91,7 +130,8 @@ optional<string> kv_get(const string& key) {
             }
         }
     }
-    return last_value; // 최종 값을 반환한다.
+    if (!last_value) return nullopt;
+    return decrypt(*last_value); // 최종 값을 복호화하여 반환한다.
 }
 
 int main(int argc, char** argv) {
